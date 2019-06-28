@@ -11,29 +11,75 @@ class Ray:
         return self.origin + t * self.direction
 
 
-def hit_sphere(center, radius, ray):
-    r = ray.origin - center
-
-    a = ray.direction.dot(ray.direction)
-    b = 2.0 * ray.direction.dot(r)
-    c = r.dot(r) - radius ** 2
-
-    disc = b ** 2 - 4 * a * c
-    if disc < 0:
-        return -1.0
-
-    return (-b - np.sqrt(disc)) / (2.0 * a)
+class HitRecord:
+    def __init__(self, t, p, normal):
+        self.t = t
+        self.p = p
+        self.normal = normal
 
 
-def color(ray):
-    sphere_center = np.array([0.0, 0.0, -1.0])
-    sphere_intersect = hit_sphere(sphere_center, .5, r)
-    if sphere_intersect > 0.0:
-        sphere_ray = ray.point_at_parameter(sphere_intersect)
-        s_norm = sphere_ray - sphere_center
-        s_norm /= np.linalg.norm(s_norm)
-        return .5 * (s_norm + 1)
-            
+class Hitable:
+    def hit(ray, t_min, t_max):
+        return False
+
+
+class Sphere(Hitable):
+    def __init__(self, center, radius):
+        self.center = center
+        self.radius = radius
+
+    def hit(self, ray, t_min, t_max):
+        r = ray.origin - self.center
+
+        a = ray.direction.dot(ray.direction)
+        b = 2.0 * ray.direction.dot(r)
+        c = r.dot(r) - self.radius ** 2
+
+        disc = b ** 2 - 4 * a * c
+        if disc < 0:
+            return
+
+        r1 = (-b - np.sqrt(disc)) / (2.0 * a)
+        r2 = (-b + np.sqrt(disc)) / (2.0 * a)
+
+        hit_t = None
+        if r1 < t_max and r1 > t_min:
+            hit_t = r1
+        elif r2 < t_max and r2 > t_max:
+            hit_t = r2
+
+        if hit_t:
+            hit_loc = ray.point_at_parameter(hit_t)
+            s_norm = hit_loc - self.center
+            s_norm /= np.linalg.norm(s_norm)
+            return HitRecord(hit_t, hit_loc, s_norm)
+
+
+class World:
+    def __init__(self, hitables):
+        self.hitables = hitables
+
+    def add_hitables(self, hitables):
+        self.hitables += hitables
+
+    def hit(self, ray, t_min, t_max):
+        closest_hit = None
+        closest_distance = t_max
+        for h in self.hitables:
+            rec = h.hit(ray, t_min, closest_distance)
+            if rec:
+                closest_distance = rec.t
+                closest_hit = rec
+        return closest_hit
+
+
+def color(ray, world):
+    MAX_DIST = 1000000000
+    hit_rec = world.hit(ray, 0.0, MAX_DIST)
+
+    if hit_rec:
+        return .5 * (hit_rec.normal + 1)
+
     norm_vec = ray.direction / np.linalg.norm(ray.direction)
     t = .5 * (norm_vec[1] + 1.0)
     c1 = np.array([1.0, 1.0, 1.0])
@@ -42,14 +88,22 @@ def color(ray):
 
 
 if __name__ == '__main__':
-    im_width = 400
-    im_height = 200
+    scale = 4.0
+    base_im_width = 200
+    base_im_height = 100
+
+    im_width = int(base_im_width * scale)
+    im_height = int(base_im_height * scale)
     im_arr = np.zeros((im_height, im_width, 3), dtype=np.uint8)
 
     lower_left_corner = np.array([-2.0, -1.0, -1.0])
     horizontal = np.array([4.0, 0.0, 0.0])
     vertical = np.array([0.0, 2.0, 0.0])
     origin = np.array([0.0, 0.0, 0.0])
+
+    s1 = Sphere(np.array([0.0, 0.0, -1.0]), .5)
+    s2 = Sphere(np.array([0.0, -100.5, -1.0]), 100)
+    world = World([s1, s2])
 
     for j in range(im_height):
         for x in range(im_width):
@@ -60,7 +114,8 @@ if __name__ == '__main__':
             ray_offset = u * horizontal + v * vertical
             r = Ray(origin, lower_left_corner + ray_offset)
 
-            im_arr[j, x] = np.array(255.0 * color(r), dtype=np.uint8)
+            col = color(r, world)
+            im_arr[j, x] = np.array(255.0 * col, dtype=np.uint8)
 
     im = Image.fromarray(im_arr, 'RGB')
     im.show()
