@@ -11,7 +11,29 @@ class Ray:
         return self.origin + t * self.direction
 
 
+def hit_sphere(center, radius, ray):
+    r = ray.origin - center
+
+    a = ray.direction.dot(ray.direction)
+    b = 2.0 * ray.direction.dot(r)
+    c = r.dot(r) - radius ** 2
+
+    disc = b ** 2 - 4 * a * c
+    if disc < 0:
+        return -1.0
+
+    return (-b - np.sqrt(disc)) / (2.0 * a)
+
+
 def color(ray):
+    sphere_center = np.array([0.0, 0.0, -1.0])
+    sphere_intersect = hit_sphere(sphere_center, .5, r)
+    if sphere_intersect > 0.0:
+        sphere_ray = ray.point_at_parameter(sphere_intersect)
+        s_norm = sphere_ray - sphere_center
+        s_norm /= np.linalg.norm(s_norm)
+        return .5 * (s_norm + 1)
+            
     norm_vec = ray.direction / np.linalg.norm(ray.direction)
     t = .5 * (norm_vec[1] + 1.0)
     c1 = np.array([1.0, 1.0, 1.0])
@@ -20,8 +42,8 @@ def color(ray):
 
 
 if __name__ == '__main__':
-    im_width = 800
-    im_height = 400
+    im_width = 400
+    im_height = 200
     im_arr = np.zeros((im_height, im_width, 3), dtype=np.uint8)
 
     lower_left_corner = np.array([-2.0, -1.0, -1.0])
