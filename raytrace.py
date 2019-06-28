@@ -86,12 +86,22 @@ class Camera:
                    self.lower_left_corner + ray_offset - self.origin)
 
 
+def random_in_unit_sphere():
+    # Sample from uniform distribution and push values
+    # within the range [-1, 1)
+    loc = 2.0 * np.random.rand(3) - 1.0
+    while np.linalg.norm(loc) >= 1.0:
+        loc = 2.0 * np.random.rand(3) - 1.0
+    return loc
+
+
 def color(ray, world):
     MAX_DIST = 1000000000
-    hit_rec = world.hit(ray, 0.0, MAX_DIST)
+    hit_rec = world.hit(ray, 0.001, MAX_DIST)
 
     if hit_rec:
-        return .5 * (hit_rec.normal + 1)
+        target = hit_rec.p + hit_rec.normal + random_in_unit_sphere()
+        return .5 * color(Ray(hit_rec.p, target - hit_rec.p), world)
 
     norm_vec = ray.direction / np.linalg.norm(ray.direction)
     t = .5 * (norm_vec[1] + 1.0)
@@ -101,10 +111,10 @@ def color(ray, world):
 
 
 if __name__ == '__main__':
-    scale = 4.0
+    scale = 2.0
     base_im_width = 200
     base_im_height = 100
-    n_samples_in_pixel = 5
+    n_samples_in_pixel = 10
 
     im_width = int(base_im_width * scale)
     im_height = int(base_im_height * scale)
@@ -127,6 +137,7 @@ if __name__ == '__main__':
                 col += color(r, world)
 
             col /= n_samples_in_pixel
+            col = np.sqrt(col)
             im_arr[j, x] = np.array(255.0 * col, dtype=np.uint8)
 
     im = Image.fromarray(im_arr, 'RGB')
