@@ -73,6 +73,19 @@ class World:
         return closest_hit
 
 
+class Camera:
+    def __init__(self):
+        self.lower_left_corner = np.array([-2.0, -1.0, -1.0])
+        self.horizontal = np.array([4.0, 0.0, 0.0])
+        self.vertical = np.array([0.0, 2.0, 0.0])
+        self.origin = np.array([0.0, 0.0, 0.0])
+
+    def get_ray(self, u, v):
+        ray_offset = u * self.horizontal + v * self.vertical
+        return Ray(self.origin,
+                   self.lower_left_corner + ray_offset - self.origin)
+
+
 def color(ray, world):
     MAX_DIST = 1000000000
     hit_rec = world.hit(ray, 0.0, MAX_DIST)
@@ -91,30 +104,29 @@ if __name__ == '__main__':
     scale = 4.0
     base_im_width = 200
     base_im_height = 100
+    n_samples_in_pixel = 5
 
     im_width = int(base_im_width * scale)
     im_height = int(base_im_height * scale)
     im_arr = np.zeros((im_height, im_width, 3), dtype=np.uint8)
 
-    lower_left_corner = np.array([-2.0, -1.0, -1.0])
-    horizontal = np.array([4.0, 0.0, 0.0])
-    vertical = np.array([0.0, 2.0, 0.0])
-    origin = np.array([0.0, 0.0, 0.0])
-
     s1 = Sphere(np.array([0.0, 0.0, -1.0]), .5)
     s2 = Sphere(np.array([0.0, -100.5, -1.0]), 100)
     world = World([s1, s2])
 
+    cam = Camera()
     for j in range(im_height):
         for x in range(im_width):
             y = im_height - j
+            col = np.array([0.0, 0.0, 0.0])
+            for s in range(n_samples_in_pixel):
+                u = (x + np.random.rand()) / im_width
+                v = (y + np.random.rand()) / im_height
 
-            u = x / im_width
-            v = y / im_height
-            ray_offset = u * horizontal + v * vertical
-            r = Ray(origin, lower_left_corner + ray_offset)
+                r = cam.get_ray(u, v)
+                col += color(r, world)
 
-            col = color(r, world)
+            col /= n_samples_in_pixel
             im_arr[j, x] = np.array(255.0 * col, dtype=np.uint8)
 
     im = Image.fromarray(im_arr, 'RGB')
