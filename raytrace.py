@@ -1,4 +1,5 @@
 from PIL import Image
+from multiprocessing import Pool
 import numpy as np
 
 
@@ -86,35 +87,59 @@ class Camera:
                    self.lower_left_corner + ray_offset - self.origin)
 
 
-def random_in_unit_sphere():
-    # Sample from uniform distribution and push values
-    # within the range [-1, 1)
-    loc = 2.0 * np.random.rand(3) - 1.0
-    while np.linalg.norm(loc) >= 1.0:
+class RayTraceOperation:
+    def __init__(self, x, y, world, camera):
+        self.x = x
+        self.y = y
+        self.world = world
+        self.camera = camera
+
+    def random_in_unit_sphere(self):
+        # Sample from uniform distribution and push values
+        # within the range [-1, 1)
         loc = 2.0 * np.random.rand(3) - 1.0
-    return loc
+        while np.linalg.norm(loc) >= 1.0:
+            loc = 2.0 * np.random.rand(3) - 1.0
+        return loc
+
+    def color(self, ray):
+        MAX_DIST = 1000000000
+        hit_rec = self.world.hit(ray, 0.001, MAX_DIST)
+
+        if hit_rec:
+            target = hit_rec.normal + self.random_in_unit_sphere()
+            return .5 * self.color(Ray(hit_rec.p, target))
+
+        norm_vec = ray.direction / np.linalg.norm(ray.direction)
+        t = .5 * (norm_vec[1] + 1.0)
+        c1 = np.array([1.0, 1.0, 1.0])
+        c2 = np.array([.5, .7, 1.0])
+        return (1.0 - t) * c1 + t * c2
+
+    def compute_pixel_color(self):
+        col = np.array([0.0, 0.0, 0.0])
+        for s in range(n_samples_in_pixel):
+            u = (self.x + np.random.rand()) / im_width
+            v = (self.y + np.random.rand()) / im_height
+
+            r = self.camera.get_ray(u, v)
+            col += self.color(r)
+
+        col /= n_samples_in_pixel
+        col = np.sqrt(col)
+        return np.array(255.0 * col, dtype=np.uint8)
 
 
-def color(ray, world):
-    MAX_DIST = 1000000000
-    hit_rec = world.hit(ray, 0.001, MAX_DIST)
-
-    if hit_rec:
-        target = hit_rec.p + hit_rec.normal + random_in_unit_sphere()
-        return .5 * color(Ray(hit_rec.p, target - hit_rec.p), world)
-
-    norm_vec = ray.direction / np.linalg.norm(ray.direction)
-    t = .5 * (norm_vec[1] + 1.0)
-    c1 = np.array([1.0, 1.0, 1.0])
-    c2 = np.array([.5, .7, 1.0])
-    return (1.0 - t) * c1 + t * c2
+def f(ray_trace_op):
+    return ray_trace_op.compute_pixel_color()
 
 
 if __name__ == '__main__':
-    scale = 2.0
+    scale = 4.0
     base_im_width = 200
     base_im_height = 100
     n_samples_in_pixel = 10
+    num_processors = 8
 
     im_width = int(base_im_width * scale)
     im_height = int(base_im_height * scale)
@@ -125,20 +150,19 @@ if __name__ == '__main__':
     world = World([s1, s2])
 
     cam = Camera()
+    ray_trace_args = []
     for j in range(im_height):
         for x in range(im_width):
             y = im_height - j
-            col = np.array([0.0, 0.0, 0.0])
-            for s in range(n_samples_in_pixel):
-                u = (x + np.random.rand()) / im_width
-                v = (y + np.random.rand()) / im_height
+            op = RayTraceOperation(x, y, world, cam)
+            ray_trace_args.append(op)
+#            im_arr[j, x] = raytrace(x, y, world, cam)
 
-                r = cam.get_ray(u, v)
-                col += color(r, world)
-
-            col /= n_samples_in_pixel
-            col = np.sqrt(col)
-            im_arr[j, x] = np.array(255.0 * col, dtype=np.uint8)
+    with Pool(num_processors) as p:
+        cols_per_pixel = p.map(f, ray_trace_args)
+        for op, color in zip(ray_trace_args, cols_per_pixel):
+            j = im_height - op.y
+            im_arr[j, op.x] = color
 
     im = Image.fromarray(im_arr, 'RGB')
     im.show()
