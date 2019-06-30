@@ -9,7 +9,7 @@ class Camera:
         self.vertical = vec3(0.0, 2.0, 0.0)
         self.origin = vec3(0.0, 0.0, 0.0)
 
-    def get_ray(self, u, v):
+    def get_ray(self, u: float, v: float) -> Ray:
         ray_offset = u * self.horizontal + v * self.vertical
         return Ray(self.origin,
                    self.lower_left_corner + ray_offset - self.origin)
