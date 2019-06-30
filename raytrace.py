@@ -1,115 +1,10 @@
+import numpy as np
 from PIL import Image
 from multiprocessing import Pool
-import numpy as np
-
-
-def random_in_unit_sphere():
-    # Sample from uniform distribution and push values
-    # within the range [-1, 1)
-    loc = 2.0 * np.random.rand(3) - 1.0
-    while np.linalg.norm(loc) >= 1.0:
-        loc = 2.0 * np.random.rand(3) - 1.0
-    return loc
-
-
-def vec3(a, b, c):
-    return np.array([a, b, c])
-
-
-class Ray:
-    def __init__(self, origin, direction):
-        self.origin = origin
-        self.direction = direction
-
-    def point_at_parameter(self, t):
-        return self.origin + t * self.direction
-
-
-class HitRecord:
-    def __init__(self, t, p, normal, material):
-        self.t = t
-        self.p = p
-        self.normal = normal
-        self.material = material
-
-
-class Hitable:
-    def hit(ray, t_min, t_max):
-        return False
-
-
-class Sphere(Hitable):
-    def __init__(self, center, radius, material):
-        self.center = center
-        self.radius = radius
-        self.material = material
-
-    def hit(self, ray, t_min, t_max):
-        r = ray.origin - self.center
-
-        a = ray.direction.dot(ray.direction)
-        b = 2.0 * ray.direction.dot(r)
-        c = r.dot(r) - self.radius ** 2
-
-        disc = b ** 2 - 4 * a * c
-        if disc < 0:
-            return
-
-        r1 = (-b - np.sqrt(disc)) / (2.0 * a)
-        r2 = (-b + np.sqrt(disc)) / (2.0 * a)
-
-        hit_t = None
-        if r1 < t_max and r1 > t_min:
-            hit_t = r1
-        elif r2 < t_max and r2 > t_max:
-            hit_t = r2
-
-        if hit_t:
-            hit_loc = ray.point_at_parameter(hit_t)
-            s_norm = hit_loc - self.center
-            s_norm /= np.linalg.norm(s_norm)
-            return HitRecord(hit_t, hit_loc, s_norm, self.material)
-
-
-class ScatterResult:
-    def __init__(self, scattered_ray, attenuation):
-        self.scattered_ray = scattered_ray
-        self.attenuation = attenuation
-
-
-class Material:
-    def scatter(self, in_ray, attenutation):
-        return
-
-
-class Lambertian(Material):
-    def __init__(self, albedo):
-        self.albedo = albedo
-
-    def scatter(self, in_ray, hit_rec):
-        target = hit_rec.normal + random_in_unit_sphere()
-        scattered_ray = Ray(hit_rec.p, target)
-        return ScatterResult(scattered_ray, self.albedo)
-
-
-class Metal(Material):
-    def __init__(self, albedo, fuzz):
-        self.albedo = albedo
-        self.fuzz = max(1.0, fuzz)
-
-    def scatter(self, in_ray, hit_rec):
-        unit_dir = in_ray.direction / np.linalg.norm(in_ray.direction)
-        ref_r = self.reflect(unit_dir, hit_rec.normal)
-        ref_r += self.fuzz * random_in_unit_sphere()
-
-        if ref_r.dot(hit_rec.normal) <= 0:
-            return
-
-        scattered = Ray(hit_rec.p, ref_r)
-        return ScatterResult(scattered, self.albedo)
-
-    def reflect(self, source, normal):
-        return source - 2 * source.dot(normal) * normal
+from utils import vec3
+from hitable import Sphere
+from camera import Camera
+from material import Lambertian, Metal
 
 
 class World:
@@ -128,19 +23,6 @@ class World:
                 closest_distance = rec.t
                 closest_hit = rec
         return closest_hit
-
-
-class Camera:
-    def __init__(self):
-        self.lower_left_corner = vec3(-2.0, -1.0, -1.0)
-        self.horizontal = vec3(4.0, 0.0, 0.0)
-        self.vertical = vec3(0.0, 2.0, 0.0)
-        self.origin = vec3(0.0, 0.0, 0.0)
-
-    def get_ray(self, u, v):
-        ray_offset = u * self.horizontal + v * self.vertical
-        return Ray(self.origin,
-                   self.lower_left_corner + ray_offset - self.origin)
 
 
 class RayTraceOperation:
@@ -186,7 +68,7 @@ def compute_pixel_color(ray_trace_op):
 
 
 if __name__ == '__main__':
-    scale = 4.0
+    scale = 1.0
     base_im_width = 200
     base_im_height = 100
     n_samples_in_pixel = 50
