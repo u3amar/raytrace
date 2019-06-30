@@ -12,3 +12,7 @@ def random_in_unit_sphere():
 
 def vec3(a, b, c):
     return np.array([a, b, c])
+
+
+def unit(vec):
+    return vec / np.linalg.norm(vec)
